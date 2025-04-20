@@ -1,4 +1,5 @@
 from Processed_Data import process_all_data
+
 data = process_all_data()
 train_data = data["ProcessedTrain"]
 dev_in_data = data["ProcessedDevIn"]
@@ -44,7 +45,7 @@ def transition_mle(data):
             tags[transition] /= count[transition[0]]
     
     return tags
-    
+
 def smoothenedMLE(data, k = 3):
     wordCounts = {}
     for word, tag in data:
@@ -73,7 +74,6 @@ def predict_tags(emission_probs, input_data, output_file):
         if tag not in vocabulary:
             vocabulary.append(emission_probs[tag].keys())
     with open(output_file, 'w') as fout:
-        count = 0
         for line in input_data:
             word = line[0]
             processed_word = word if word in vocabulary else "#UNK#"
@@ -81,4 +81,52 @@ def predict_tags(emission_probs, input_data, output_file):
             fout.write(f"{word} {bestTag}\n")
             fout.write("\n")
 
-print(predict_tags(smoothenedMLE(train_data),dev_in_data,"EN/EN/dev.p2.out"))
+print(predict_tags(smoothenedMLE(train_data),dev_in_data,"EN/dev.p2.out"))
+
+
+def viterbi(seq, a, b, states):
+
+    # init score matrix
+    N = len(seq)
+    T = len(states)
+    score_m = [[0] * T for _ in range(N + 1)]
+    backpointer = [[0] * T for _ in range(N + 1)]
+
+    START_S = "START"
+    STOP_S ="STOP"
+
+    # init step 0 START
+    for j in range(T):
+        score_m[0][j] = a[(START_S, states[j])] * b[states[j], seq[0]]
+
+    # forward
+    for i in range(1, N):
+        for j in range(T):
+            parent = 0
+            score = 0
+            for k in range(0, T):
+                score = score_m[i-1][k] * a[(states[k], states[j])] * b[states[j], seq[i]]
+                if score_m[i][j] < score:
+                    score_m[i][j] = score
+                    parent = k
+            backpointer[i][j] = parent
+    
+    # terminate recursion
+    best_final_score = 0
+    last_parent = None
+    for j in range(T):        
+        score_m[N][j] = score_m[N-1][j] * a[(states[j], STOP_S)]
+        if score_m[N][j] > best_final_score:
+            last_parent = j
+            best_final_score = score_m[N][j]
+
+    # backwards
+    res = [None] * (N+1)
+    res[N] = STOP_S
+    res[N-1] = states[last_parent]
+
+    for i in range(N-2, -1, -1):
+        last_parent = backpointer[i+1][last_parent]
+        res[i] = states[last_parent]
+
+    return res
