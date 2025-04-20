@@ -4,10 +4,12 @@ train_data = data["ProcessedTrain"]
 dev_in_data = data["ProcessedDevIn"]
 dev_out_data = data["ProcessedDevOut"]
 
-def train_mle(data , k = 0):
+def emission_mle(data):
     countYX = {}
     countY = {}
-    for word,tag in train_data:
+    for word,tag in data:
+        if tag == "START": 
+            continue
         countY[tag] = countY.get(tag, 0) + 1
         if tag not in countYX:
             countYX[tag] = {}
@@ -19,7 +21,31 @@ def train_mle(data , k = 0):
             emissionProbs[tag][word] = countYX[tag][word] / countY[tag]
     return emissionProbs
 
-def train_smoothenedMLE(data, k = 3):
+def transition_mle(data):
+    tags = {}
+    count = {}
+
+    START_S = "START"
+    STOP_S = "STOP"
+
+    prev_state = START_S
+
+    for _, curr_state in data:
+        if not (curr_state == START_S and prev_state == START_S):
+            if curr_state != START_S: 
+                tags[(prev_state, curr_state)] = tags.get((prev_state, curr_state), 0) + 1
+            else:
+                tags[(prev_state, STOP_S)] = tags.get((prev_state, STOP_S), 0) + 1
+            count[curr_state] = count.get(curr_state, 0) + 1
+       
+        prev_state = curr_state
+    
+    for transition in tags:
+            tags[transition] /= count[transition[0]]
+    
+    return tags
+    
+def smoothenedMLE(data, k = 3):
     wordCounts = {}
     for word, tag in data:
         wordCounts[word] = wordCounts.get(word, 0) + 1
@@ -54,4 +80,5 @@ def predict_tags(emission_probs, input_data, output_file):
             bestTag = max(emission_probs.keys(),key=lambda tag: emission_probs[tag].get(processed_word, 0))
             fout.write(f"{word} {bestTag}\n")
             fout.write("\n")
-print(predict_tags(train_smoothenedMLE(train_data),dev_in_data,"EN/EN/dev.p2.out"))
+
+print(predict_tags(smoothenedMLE(train_data),dev_in_data,"EN/EN/dev.p2.out"))
